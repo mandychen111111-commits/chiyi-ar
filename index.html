@@ -6,20 +6,69 @@
 <title>包裝 AR 檢視器</title>
 <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
 <style>
-*{box-sizing:border-box}
-html,body{margin:0;height:100%;background:#15171b;color:#eef0f3;font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif}
-.wrap{min-height:100%;display:flex;flex-direction:column}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#15171b;color:#eef0f3;font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{min-height:100vh;display:flex;flex-direction:column}
 header{padding:calc(env(safe-area-inset-top) + 18px) 20px 10px}
 .brand{font-size:10px;letter-spacing:.2em;color:#9aa1ac}
 h1{margin:4px 0 2px;font-size:22px}
 .sub{font-size:13px;color:#9aa1ac;line-height:1.6}
-model-viewer{flex:1;width:100%;min-height:55vh;background:radial-gradient(circle at 50% 40%,#3a3e46,#1b1d22);--poster-color:transparent}
+.stage{position:relative;flex:1;min-height:58vh;display:none}
+model-viewer{width:100%;height:100%;min-height:58vh;background:radial-gradient(circle at 50% 40%,#3a3e46,#1b1d22);--poster-color:transparent}
 .pick{margin:14px 20px;display:block;text-align:center;border:1.5px dashed rgba(255,255,255,.25);border-radius:14px;padding:22px 14px;cursor:pointer}
 .pick b{display:block;font-size:16px;margin-bottom:4px}
 .pick small{color:#9aa1ac;font-size:12px}
 .pick input{display:none}
-#arBtn{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:#5fd3e6;color:#062a31;border:0;border-radius:999px;padding:14px 26px;font-size:16px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);white-space:nowrap}
-.info{margin:0 20px 10px;font-size:12.5px;color:#9aa1ac;line-height:1.7}
+
+/* 3D preview controls */
+.views{position:absolute;left:10px;right:10px;top:10px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.views::-webkit-scrollbar{display:none}
+.vbtn{flex:none;background:rgba(15,17,21,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:8px 13px;font-size:13px}
+.vbtn.on{border-color:#5fd3e6;color:#5fd3e6}
+.zoom{position:absolute;right:10px;top:56px;display:flex;flex-direction:column;gap:6px}
+.zbtn{width:44px;height:44px;border-radius:12px;background:rgba(15,17,21,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center}
+.zbtn small{font-size:10px}
+.hint3d{position:absolute;left:12px;bottom:84px;font-size:11.5px;color:#c9ced6;background:rgba(15,17,21,.6);padding:6px 10px;border-radius:9px;pointer-events:none}
+#arGo{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);background:#5fd3e6;color:#062a31;border:0;border-radius:999px;padding:14px 26px;font-size:16px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);white-space:nowrap;display:none}
+
+/* pre-AR guide */
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.sheet.show{display:flex}
+.card{width:100%;max-width:520px;background:#1d2026;border-radius:20px 20px 0 0;padding:20px 20px calc(env(safe-area-inset-bottom) + 18px);max-height:92vh;overflow:auto}
+.card h2{margin:0 0 4px;font-size:18px}
+.card .lead{font-size:13px;color:#9aa1ac;margin:0 0 14px}
+.steps{display:grid;gap:10px}
+.step{display:flex;gap:12px;align-items:center;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:11px 12px}
+.ico{flex:none;width:52px;height:52px;border-radius:12px;background:rgba(95,211,230,.1);display:flex;align-items:center;justify-content:center;font-size:26px;position:relative;overflow:hidden}
+.step b{display:block;font-size:14px}
+.step span{font-size:12px;color:#9aa1ac;line-height:1.5}
+.mode{display:flex;gap:6px;margin:14px 0 6px}
+.mode button{flex:1;padding:10px 6px;border-radius:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-size:13px}
+.mode button.on{background:#f3f4f6;color:#111;border-color:#f3f4f6;font-weight:700}
+.mode-note{font-size:11.5px;color:#9aa1ac;margin:0 0 14px}
+.go{width:100%;padding:14px;border-radius:14px;border:0;background:#5fd3e6;color:#062a31;font-size:16px;font-weight:700}
+.later{width:100%;padding:10px;margin-top:6px;background:none;border:0;color:#9aa1ac;font-size:13px}
+@keyframes swipe{0%,100%{transform:translateX(-9px)}50%{transform:translateX(9px)}}
+@keyframes pinch{0%,100%{transform:scale(.8)}50%{transform:scale(1.15)}}
+@keyframes spin{0%,100%{transform:rotate(-25deg)}50%{transform:rotate(25deg)}}
+@keyframes walk{0%,100%{transform:translateY(4px) scale(.9)}50%{transform:translateY(-3px) scale(1.12)}}
+.a-swipe{animation:swipe 1.6s ease-in-out infinite}
+.a-pinch{animation:pinch 1.4s ease-in-out infinite}
+.a-spin{animation:spin 1.8s ease-in-out infinite}
+.a-walk{animation:walk 1.6s ease-in-out infinite}
+
+/* in-AR overlay (WebXR) */
+.arui{display:none;position:absolute;left:0;right:0;bottom:0;padding:0 12px calc(env(safe-area-inset-bottom) + 16px);pointer-events:none}
+model-viewer[ar-status="session-started"] .arui,model-viewer[ar-status="object-placed"] .arui{display:block}
+model-viewer[ar-status="session-started"] .views,model-viewer[ar-status="session-started"] .zoom,model-viewer[ar-status="session-started"] .hint3d,
+model-viewer[ar-status="object-placed"] .views,model-viewer[ar-status="object-placed"] .zoom,model-viewer[ar-status="object-placed"] .hint3d{display:none}
+.artip{margin:0 auto 10px;max-width:420px;background:rgba(10,12,15,.78);color:#fff;border-radius:14px;padding:10px 14px;font-size:13px;line-height:1.55;text-align:center}
+.arbar{display:flex;justify-content:center;gap:8px;pointer-events:auto}
+.arbar button{background:rgba(10,12,15,.78);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:14px;padding:10px 12px;font-size:13px;min-width:62px}
+.arbar button b{display:block;font-size:20px;line-height:1.1}
+
+.info{margin:12px 20px 10px;font-size:12.5px;color:#9aa1ac;line-height:1.7}
 .warn{margin:0 20px 12px;padding:12px 14px;border-radius:12px;background:rgba(255,180,80,.12);color:#ffd59a;font-size:13px;line-height:1.6;display:none}
 .meta{margin:0 20px 8px;font-size:13px}
 footer{padding:8px 20px calc(env(safe-area-inset-bottom) + 18px);font-size:11px;color:#6d7480}
@@ -42,28 +91,148 @@ footer{padding:8px 20px calc(env(safe-area-inset-bottom) + 18px);font-size:11px;
   <div class="meta" id="meta"></div>
   <div class="warn" id="warn"></div>
 
-  <model-viewer id="mv" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1"
-    ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor" style="display:none">
-    <button slot="ar-button" id="arBtn">📱 在你的空間中檢視</button>
-  </model-viewer>
+  <div class="stage" id="stage">
+    <model-viewer id="mv" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1" interaction-prompt="none"
+      camera-orbit="25deg 75deg auto" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor">
+      <button slot="ar-button" style="display:none" aria-hidden="true"></button>
+      <div class="views" id="views">
+        <button class="vbtn" data-v="front">正面</button>
+        <button class="vbtn" data-v="left">左側</button>
+        <button class="vbtn" data-v="right">右側</button>
+        <button class="vbtn" data-v="back">背面</button>
+        <button class="vbtn" data-v="top">俯視</button>
+        <button class="vbtn" data-v="spin">⟳ 自動旋轉</button>
+      </div>
+      <div class="zoom">
+        <button class="zbtn" id="zin" aria-label="放大">＋</button>
+        <button class="zbtn" id="zout" aria-label="縮小">－</button>
+        <button class="zbtn" id="zreset" aria-label="重置"><small>重置</small></button>
+      </div>
+      <div class="hint3d" id="hint3d">單指拖曳旋轉・雙指縮放</div>
+
+      <!-- shown inside AR (Android WebXR) -->
+      <div class="arui">
+        <div class="artip" id="artip">慢慢左右移動手機掃描桌面，出現產品後點一下放置</div>
+        <div class="arbar">
+          <button id="rotL"><b>⟲</b>向左轉</button>
+          <button id="rotR"><b>⟳</b>向右轉</button>
+          <button id="arHelp"><b>?</b>手勢</button>
+        </div>
+      </div>
+    </model-viewer>
+    <button id="arGo">📱 在你的空間中檢視</button>
+  </div>
 
   <div class="info" id="tips">
     Android：請用 <b>Chrome</b> 開啟本頁，手機需支援 ARCore（設定 → 應用程式中有「Google Play 服務 AR 版」）。<br>
-    iPhone：用 Safari 開啟，選檔後點按鈕即可進入 AR。<br>
-    進入 AR 後慢慢左右移動手機掃描桌面，出現白點後模型會自動放上去；雙指可旋轉。
+    iPhone：用 Safari 開啟即可。
   </div>
-  <footer>檔案只在你的手機上讀取，不會上傳。</footer>
+  <footer id="foot">檔案只在你的手機上讀取，不會上傳。</footer>
+</div>
+
+<!-- pre-AR guide -->
+<div class="sheet" id="guide">
+  <div class="card">
+    <h2>AR 操作導覽</h2>
+    <p class="lead">進入 AR 後，用這些手勢看產品的每個角度：</p>
+    <div class="steps">
+      <div class="step"><div class="ico"><span class="a-swipe">📱</span></div><div><b>1. 掃描桌面</b><span>對準桌面，慢慢左右移動手機，直到產品出現</span></div></div>
+      <div class="step"><div class="ico"><span class="a-swipe">👆</span></div><div><b>2. 單指拖曳：移動位置</b><span>把產品拖到想放的地方</span></div></div>
+      <div class="step"><div class="ico"><span class="a-spin">✌️</span></div><div><b>3. 雙指轉動：看左側／右側</b><span>兩指放在螢幕上一起旋轉，產品會跟著轉；Android 也可按「向左轉／向右轉」</span></div></div>
+      <div class="step"><div class="ico"><span class="a-pinch">🤏</span></div><div><b id="pinchT">4. 放大縮小：走近或走遠</b><span id="pinchD">實際大小模式下，拿著手機走近就是放大看細節，退後就是看全貌</span></div></div>
+      <div class="step"><div class="ico"><span class="a-walk">🚶</span></div><div><b>5. 繞一圈看背面</b><span>產品固定在桌上後，可以拿著手機繞到後面看</span></div></div>
+    </div>
+    <div class="mode" id="mode">
+      <button data-v="fixed" class="on">1:1 實際大小</button>
+      <button data-v="auto">可自由縮放</button>
+    </div>
+    <p class="mode-note" id="modeNote">產品會以真實尺寸出現，最適合確認大小。</p>
+    <button class="go" id="goAR">開始 AR</button>
+    <button class="later" id="closeGuide">先不要</button>
+  </div>
 </div>
 
 <script type="module">
 import { unzipSync } from 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/esm/browser.js';
-const mv = document.getElementById('mv'), meta = document.getElementById('meta'), warn = document.getElementById('warn');
+const $ = id => document.getElementById(id);
+const mv = $('mv'), meta = $('meta'), warn = $('warn');
 let urls = [];
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 const isAndroid = /Android/i.test(navigator.userAgent);
 function showWarn(t){ warn.innerHTML = t; warn.style.display = t ? 'block' : 'none'; }
 
-document.getElementById('file').addEventListener('change', async e => {
+function showModel(){
+  $('stage').style.display = 'block';
+  mv.updateComplete.then(() => setTimeout(() => {
+    if(mv.canActivateAR){ $('arGo').style.display = 'block'; return; }
+    if(isAndroid) showWarn('這支手機目前無法啟動 AR。請確認：① 用 Chrome 開啟 ② 已安裝／更新「Google Play 服務 AR 版」③ 手機型號支援 ARCore。仍可用上方 3D 預覽查看各個角度。');
+    else if(!isIOS) showWarn('電腦無法使用 AR，請用手機掃描 QR Code 開啟。可先用上方 3D 預覽查看各個角度。');
+  }, 800));
+}
+
+/* ---------- 3D preview navigation ---------- */
+const VIEWS = { front:[0,78], left:[-90,78], right:[90,78], back:[180,78], top:[20,12] };
+let spinning = false;
+function setSpin(on){ spinning = on; if(on) mv.setAttribute('auto-rotate',''); else mv.removeAttribute('auto-rotate');
+  document.querySelector('.vbtn[data-v=spin]').classList.toggle('on', on); }
+$('views').addEventListener('click', e => {
+  const b = e.target.closest('.vbtn'); if(!b) return;
+  const v = b.dataset.v;
+  if(v==='spin'){ setSpin(!spinning); return; }
+  setSpin(false);
+  const [t,p] = VIEWS[v];
+  mv.cameraOrbit = `${t}deg ${p}deg auto`;
+  document.querySelectorAll('.vbtn').forEach(x => x.classList.toggle('on', x===b));
+});
+function zoom(f){
+  setSpin(false);
+  const o = mv.getCameraOrbit();
+  mv.cameraOrbit = `${o.theta}rad ${o.phi}rad ${Math.max(o.radius*f, 0.02)}m`;
+}
+$('zin').onclick = () => zoom(0.75);
+$('zout').onclick = () => zoom(1.33);
+$('zreset').onclick = () => { setSpin(false); mv.cameraOrbit = '25deg 75deg auto'; mv.fieldOfView = 'auto'; document.querySelectorAll('.vbtn').forEach(x=>x.classList.remove('on')); };
+mv.addEventListener('camera-change', e => { if(e.detail.source === 'user'){ $('hint3d').style.opacity = 0; document.querySelectorAll('.vbtn:not([data-v=spin])').forEach(x=>x.classList.remove('on')); } });
+
+/* ---------- pre-AR guide ---------- */
+const guide = $('guide');
+function setMode(v){
+  mv.setAttribute('ar-scale', v);
+  document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.v===v));
+  $('modeNote').textContent = v==='fixed' ? '產品會以真實尺寸出現，最適合確認大小。' : '可用雙指捏合放大縮小（尺寸不再是 1:1），適合看細節。';
+  $('pinchT').textContent = v==='fixed' ? '4. 放大縮小：走近或走遠' : '4. 雙指捏合：放大縮小';
+  $('pinchD').textContent = v==='fixed' ? '實際大小模式下，拿著手機走近就是放大看細節，退後就是看全貌' : '兩指張開放大、捏合縮小';
+}
+$('mode').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setMode(b.dataset.v); });
+$('arGo').onclick = () => guide.classList.add('show');
+$('closeGuide').onclick = () => guide.classList.remove('show');
+guide.addEventListener('click', e => { if(e.target===guide) guide.classList.remove('show'); });
+$('goAR').onclick = () => { guide.classList.remove('show'); setSpin(false); mv.activateAR(); };
+
+/* ---------- in-AR controls (WebXR) ---------- */
+let yaw = 0;
+function rotate(d){ yaw += d; mv.orientation = `0deg 0deg ${yaw}deg`; }
+$('rotL').onclick = () => rotate(45);
+$('rotR').onclick = () => rotate(-45);
+$('arHelp').onclick = () => {
+  $('artip').textContent = mv.getAttribute('ar-scale')==='auto'
+    ? '單指拖曳：移動｜雙指轉動：旋轉｜雙指捏合：放大縮小｜拿手機繞一圈：看背面'
+    : '單指拖曳：移動｜雙指轉動：旋轉｜走近：看細節｜繞一圈：看背面';
+  $('artip').style.display = 'block';
+};
+mv.addEventListener('ar-tracking', e => {
+  if(e.detail.status === 'not-tracking') { $('artip').textContent = '請慢慢移動手機，對準光線充足、有紋理的桌面'; $('artip').style.display='block'; }
+});
+mv.addEventListener('ar-status', ev => {
+  const s = ev.detail.status;
+  if(s === 'session-started'){ $('artip').textContent = '慢慢左右移動手機掃描桌面，產品出現後可單指拖曳移動'; $('artip').style.display='block'; }
+  if(s === 'object-placed'){ $('artip').textContent = '已放好！雙指轉動看左側／右側，拿著手機走近看細節'; setTimeout(()=>{ if(mv.getAttribute('ar-status')==='object-placed') $('artip').style.display='none'; }, 5000); }
+  if(s === 'not-presenting'){ yaw = 0; mv.orientation = '0deg 0deg 0deg'; }
+  if(s === 'failed') showWarn('AR 啟動失敗。請確認已允許相機權限，並在光線充足、有紋理的桌面上再試一次。');
+});
+
+/* ---------- local file mode ---------- */
+$('file').addEventListener('change', async e => {
   const f = e.target.files[0]; if(!f) return;
   urls.forEach(u => URL.revokeObjectURL(u)); urls = [];
   showWarn(''); meta.textContent = '讀取中…';
@@ -82,28 +251,22 @@ document.getElementById('file').addEventListener('change', async e => {
     if(!glb && !usdz) throw new Error('找不到 AR 模型檔');
     if(glb){ const u = URL.createObjectURL(glb); urls.push(u); mv.src = u; }
     if(usdz){ const u = URL.createObjectURL(usdz); urls.push(u); mv.iosSrc = u; }
-    mv.style.display = 'block';
     meta.textContent = '✓ 已載入：' + name;
     if(!glb && !isIOS) showWarn('這個檔案只有 iPhone 用的 .usdz，Android 請選 .zip 或 .glb。');
-    await mv.updateComplete;
-    setTimeout(() => {
-      if(!mv.canActivateAR){
-        if(isAndroid) showWarn('這支手機目前無法啟動 AR。請確認：① 用 Chrome 開啟 ② 已安裝／更新「Google Play 服務 AR 版」③ 手機型號支援 ARCore。仍可在上方 3D 預覽中旋轉查看。');
-        else if(!isIOS) showWarn('電腦無法使用 AR，請用手機開啟此頁面。上方可先用 3D 預覽查看。');
-      }
-    }, 800);
+    showModel();
   }catch(err){ meta.textContent = ''; showWarn('檔案讀取失敗：' + err.message); }
   e.target.value = '';
 });
 
-// product mode: /p/<slug> (from products.json) or ?m=models/name&t=title
+/* ---------- product mode: /p/<slug> or ?m=models/name&t=title ---------- */
 function productMode(model, title, desc){
-  mv.src = model + '.glb'; mv.iosSrc = model + '.usdz'; mv.style.display = 'block';
-  document.getElementById('pick').style.display = 'none';
+  mv.src = model + '.glb'; mv.iosSrc = model + '.usdz';
+  $('pick').style.display = 'none';
   document.title = (title || '產品') + '｜AR 預覽';
   document.querySelector('h1').textContent = title || '產品 AR 預覽';
   document.querySelector('.sub').textContent = desc || '按下方按鈕，把產品以實際大小放進你的空間。';
-  document.querySelector('footer').textContent = '';
+  $('foot').textContent = '';
+  showModel();
 }
 (async () => {
   const q = new URLSearchParams(location.search), mp = q.get('m');
@@ -116,7 +279,6 @@ function productMode(model, title, desc){
     }catch{ showWarn('產品資料讀取失敗，請重新整理。'); }
   } else if(mp && /^[\w\-\/\.]+$/.test(mp)) productMode(mp, q.get('t'));
 })();
-mv.addEventListener('ar-status', ev => { if(ev.detail.status==='failed') showWarn('AR 啟動失敗。請確認已允許相機權限，並在光線充足、有紋理的桌面上再試一次。'); });
 </script>
 </body>
 </html>
