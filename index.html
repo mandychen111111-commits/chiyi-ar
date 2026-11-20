@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>包裝 AR 檢視器</title>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#15171b;color:#eef0f3;font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif}
+.wrap{min-height:100%;display:flex;flex-direction:column}
+header{padding:calc(env(safe-area-inset-top) + 18px) 20px 10px}
+.brand{font-size:10px;letter-spacing:.2em;color:#9aa1ac}
+h1{margin:4px 0 2px;font-size:22px}
+.sub{font-size:13px;color:#9aa1ac;line-height:1.6}
+model-viewer{flex:1;width:100%;min-height:55vh;background:radial-gradient(circle at 50% 40%,#3a3e46,#1b1d22);--poster-color:transparent}
+.pick{margin:14px 20px;display:block;text-align:center;border:1.5px dashed rgba(255,255,255,.25);border-radius:14px;padding:22px 14px;cursor:pointer}
+.pick b{display:block;font-size:16px;margin-bottom:4px}
+.pick small{color:#9aa1ac;font-size:12px}
+.pick input{display:none}
+#arBtn{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);background:#5fd3e6;color:#062a31;border:0;border-radius:999px;padding:14px 26px;font-size:16px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);white-space:nowrap}
+.info{margin:0 20px 10px;font-size:12.5px;color:#9aa1ac;line-height:1.7}
+.warn{margin:0 20px 12px;padding:12px 14px;border-radius:12px;background:rgba(255,180,80,.12);color:#ffd59a;font-size:13px;line-height:1.6;display:none}
+.meta{margin:0 20px 8px;font-size:13px}
+footer{padding:8px 20px calc(env(safe-area-inset-bottom) + 18px);font-size:11px;color:#6d7480}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">PACKAGING LAB</div>
+    <h1>包裝 AR 檢視器</h1>
+    <div class="sub">選擇從模擬器下載的 AR 檔，直接放進真實空間看 1:1 實際大小。</div>
+  </header>
+
+  <label class="pick" id="pick">
+    <b>📦 選擇 AR 檔</b>
+    <small>可直接選 .zip（不用解壓），或 .glb／.usdz</small>
+    <input type="file" id="file" accept=".zip,.glb,.gltf,.usdz,application/zip,model/gltf-binary">
+  </label>
+
+  <div class="meta" id="meta"></div>
+  <div class="warn" id="warn"></div>
+
+  <model-viewer id="mv" camera-controls touch-action="pan-y" shadow-intensity="1" exposure="1"
+    ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor" style="display:none">
+    <button slot="ar-button" id="arBtn">📱 在你的空間中檢視</button>
+  </model-viewer>
+
+  <div class="info" id="tips">
+    Android：請用 <b>Chrome</b> 開啟本頁，手機需支援 ARCore（設定 → 應用程式中有「Google Play 服務 AR 版」）。<br>
+    iPhone：用 Safari 開啟，選檔後點按鈕即可進入 AR。<br>
+    進入 AR 後慢慢左右移動手機掃描桌面，出現白點後模型會自動放上去；雙指可旋轉。
+  </div>
+  <footer>檔案只在你的手機上讀取，不會上傳。</footer>
+</div>
+
+<script type="module">
+import { unzipSync } from 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/esm/browser.js';
+const mv = document.getElementById('mv'), meta = document.getElementById('meta'), warn = document.getElementById('warn');
+let urls = [];
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+const isAndroid = /Android/i.test(navigator.userAgent);
+function showWarn(t){ warn.innerHTML = t; warn.style.display = t ? 'block' : 'none'; }
+
+document.getElementById('file').addEventListener('change', async e => {
+  const f = e.target.files[0]; if(!f) return;
+  urls.forEach(u => URL.revokeObjectURL(u)); urls = [];
+  showWarn(''); meta.textContent = '讀取中…';
+  try{
+    let glb = null, usdz = null, name = f.name.replace(/\.[^.]+$/, '');
+    const n = f.name.toLowerCase();
+    if(n.endsWith('.zip')){
+      const files = unzipSync(new Uint8Array(await f.arrayBuffer()));
+      for(const [p, data] of Object.entries(files)){
+        const lp = p.toLowerCase();
+        if(lp.endsWith('.glb')){ glb = new Blob([data], {type:'model/gltf-binary'}); name = p.replace(/\.glb$/i,''); }
+        else if(lp.endsWith('.usdz')) usdz = new Blob([data], {type:'model/vnd.usdz+zip'});
+      }
+    } else if(n.endsWith('.glb') || n.endsWith('.gltf')) glb = f;
+    else if(n.endsWith('.usdz')) usdz = f;
+    if(!glb && !usdz) throw new Error('找不到 AR 模型檔');
+    if(glb){ const u = URL.createObjectURL(glb); urls.push(u); mv.src = u; }
+    if(usdz){ const u = URL.createObjectURL(usdz); urls.push(u); mv.iosSrc = u; }
+    mv.style.display = 'block';
+    meta.textContent = '✓ 已載入：' + name;
+    if(!glb && !isIOS) showWarn('這個檔案只有 iPhone 用的 .usdz，Android 請選 .zip 或 .glb。');
+    await mv.updateComplete;
+    setTimeout(() => {
+      if(!mv.canActivateAR){
+        if(isAndroid) showWarn('這支手機目前無法啟動 AR。請確認：① 用 Chrome 開啟 ② 已安裝／更新「Google Play 服務 AR 版」③ 手機型號支援 ARCore。仍可在上方 3D 預覽中旋轉查看。');
+        else if(!isIOS) showWarn('電腦無法使用 AR，請用手機開啟此頁面。上方可先用 3D 預覽查看。');
+      }
+    }, 800);
+  }catch(err){ meta.textContent = ''; showWarn('檔案讀取失敗：' + err.message); }
+  e.target.value = '';
+});
+
+// product mode: /p/<slug> (from products.json) or ?m=models/name&t=title
+function productMode(model, title, desc){
+  mv.src = model + '.glb'; mv.iosSrc = model + '.usdz'; mv.style.display = 'block';
+  document.getElementById('pick').style.display = 'none';
+  document.title = (title || '產品') + '｜AR 預覽';
+  document.querySelector('h1').textContent = title || '產品 AR 預覽';
+  document.querySelector('.sub').textContent = desc || '按下方按鈕，把產品以實際大小放進你的空間。';
+  document.querySelector('footer').textContent = '';
+}
+(async () => {
+  const q = new URLSearchParams(location.search), mp = q.get('m');
+  const m = location.pathname.match(/^\/p\/([\w-]+)\/?$/);
+  if(m){
+    try{
+      const list = await (await fetch('/products.json', {cache:'no-store'})).json();
+      const p = list[m[1]];
+      if(p) productMode(p.model, p.title, p.desc); else showWarn('找不到這個產品，請確認網址。');
+    }catch{ showWarn('產品資料讀取失敗，請重新整理。'); }
+  } else if(mp && /^[\w\-\/\.]+$/.test(mp)) productMode(mp, q.get('t'));
+})();
+mv.addEventListener('ar-status', ev => { if(ev.detail.status==='failed') showWarn('AR 啟動失敗。請確認已允許相機權限，並在光線充足、有紋理的桌面上再試一次。'); });
+</script>
+</body>
+</html>
